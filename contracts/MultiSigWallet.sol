@@ -30,6 +30,7 @@ contract MultiSigWallet {
     mapping (uint => mapping (address => bool)) public confirmations;
     mapping (address => bool) public isOwner;
     address[] public owners;
+    IpfsHash[] public data_blocks;
     uint public required;
     uint public transactionCount;
 
@@ -38,6 +39,12 @@ contract MultiSigWallet {
         uint value;
         bytes data;
         bool executed;
+    }
+
+    struct IpfsHash {
+        bytes32 ipfs_hash;
+        uint8 hash_function;
+        uint8 size;
     }
 
     /*
@@ -255,6 +262,16 @@ contract MultiSigWallet {
                 return true;
         }
     }
+
+    /// @dev Allows an onwer to add Data Blocks to the wallet account
+    /// @param data_hash IPFS hash
+    function addData(int48 data_hash)
+      public
+      onlyWallet // to prevent a malicious actor from charging up the wallet account
+    {
+
+    }
+
 
     /*
      * Internal functions
