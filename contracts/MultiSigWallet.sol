@@ -17,6 +17,7 @@ contract MultiSigWallet {
     event OwnerAddition(address indexed owner);
     event OwnerRemoval(address indexed owner);
     event RequirementChange(uint required);
+    event NewData(uint indexed datablockId);
 
     /*
      *  Constants
@@ -29,10 +30,16 @@ contract MultiSigWallet {
     mapping (uint => Transaction) public transactions;
     mapping (uint => mapping (address => bool)) public confirmations;
     mapping (address => bool) public isOwner;
+    mapping (address => uint) public reputation;
     address[] public owners;
+
     IpfsHash[] public data_blocks;
+
     uint public required;
     uint public transactionCount;
+    uint public datablockCount;
+    address public master; //where the storage payment goes to
+    uint public storagePrice;
 
     struct Transaction {
         address destination;
@@ -126,7 +133,7 @@ contract MultiSigWallet {
 
     /// @dev Allows to add a new owner. Transaction has to be sent by wallet.
     /// @param owner Address of new owner.
-    function addOwner(address owner)
+    function addOwner(address owner, uint h_index)
         public
         onlyWallet
         ownerDoesNotExist(owner)
@@ -136,6 +143,7 @@ contract MultiSigWallet {
         isOwner[owner] = true;
         owners.push(owner);
         OwnerAddition(owner);
+        reputation[owner] = h_index;
     }
 
     /// @dev Allows to remove an owner. Transaction has to be sent by wallet.
@@ -263,15 +271,27 @@ contract MultiSigWallet {
         }
     }
 
-    /// @dev Allows an onwer to add Data Blocks to the wallet account
-    /// @param data_hash IPFS hash
-    function addData(int48 data_hash)
+    /// @dev Allows an onwer to add Data Blocks to the wallet account,
+    /// @dev Assumes the IPFS hash has been broken into three pieces by an outside function, see https://ethereum.stackexchange.com/a/17112/27270
+    /// @param data_hash 32-byte hash of the data
+    /// @param hash_function IPFS code for encoding (currently only 0x12 for SHA-2)
+    /// @param size (currently only 0x20 for 256-byte)
+    function addData(bytes32 ipfs_hash, uint8 hash_function, uint8 size)
       public
       onlyWallet // to prevent a malicious actor from charging up the wallet account
+      returns (uint datablockId)
     {
-
+      datablockId = addDatablock(ipfs_hash, hash_function, size);
+      NewData(datablockId);
     }
 
+    ///@dev Implements monthly storage charge
+    ///@param data_blocks array of IPFS hash structs
+    function storageCharge(IpfsHash[] data_blocks) private {
+      // unclear on charging mechanism - is it by block, or by the size of each block?
+      uint price = data_blocks.length * storagePrice;
+      //psuedocode: sendTransaction(this, master, price, gas???);
+    }
 
     /*
      * Internal functions
@@ -287,7 +307,7 @@ contract MultiSigWallet {
         returns (uint transactionId)
     {
         transactionId = transactionCount;
-        transactions[transactionId] = Transaction({
+        transactions[transactionId] = Transaction({bytes32 data_hash, uint8 hash_function, uint8 size
             destination: destination,
             value: value,
             data: data,
@@ -295,6 +315,20 @@ contract MultiSigWallet {
         });
         transactionCount += 1;
         Submission(transactionId);
+    }
+
+    function addDatablock(bytes32 data_hash, uint8 hash_function, uint8 size)
+      internal
+      notNull(datablock)
+      returns (uint datablockId)
+    {
+      datablockId = datablockCount;
+      data_blocks[datablockId] = IpfsHash({
+          ipfs_hash: data_hash,
+          hash_function: hash_function,
+          size: size,
+      });
+      datablockCount += 1;
     }
 
     /*
